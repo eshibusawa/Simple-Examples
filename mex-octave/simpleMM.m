@@ -40,3 +40,9 @@ tic;
 C = mexSimpleMM(A, B);
 toc;
 Cerr = assertMatrix(Cref, C)
+
+printf('CuBLAS: ');
+tic;
+C2 = mexSimpleMMCUDA(A, B);
+toc;
+C2err = assertMatrix(Cref, C2)

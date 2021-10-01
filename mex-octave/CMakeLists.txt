@@ -44,6 +44,16 @@ if(EIGEN3_INCLUDE_DIR)
 	message("   Eigen3 enabled")
 endif()
 
+if(${CMAKE_VERSION} VERSION_LESS "3.17")
+	set(CUDA_TOOLKIT_ROOT_DIR "/usr/local/cuda")
+	find_package(CUDA REQUIRED)
+else()
+	FindCUDAToolkit(REQUIRED)
+endif()
+if(CUDA_INCLUDE_DIRS)
+	message("   CUDA enabled")
+endif()
+
 find_package(PkgConfig)
 pkg_check_modules(OCTAVE REQUIRED octave)
 if(OCTAVE_INCLUDE_DIRS)
@@ -69,4 +79,10 @@ add_custom_command(OUTPUT mexSimpleMM.mex
 	WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/
 )
 
-add_custom_target(mexall ALL DEPENDS mexSimpleMM.mex)
+add_custom_command(OUTPUT mexSimpleMMCUDA.mex
+	COMMAND ${CMAKE_COMMAND} -E env CXXFLAGS=${OCT_CXX_FLAGS} ${OCT_COMPILER} ${OCT_COMPILER_ARGS} -I${CUDA_INCLUDE_DIRS} -Wl,${CUDA_CUBLAS_LIBRARIES},${CUDA_CUDART_LIBRARY} ${PROJECT_SOURCE_DIR}/mexSimpleMMCUDA.cpp
+	COMMAND ${CMAKE_COMMAND} -E copy mexSimpleMMCUDA.mex ${PROJECT_SOURCE_DIR}/
+	WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/
+)
+
+add_custom_target(mexall ALL DEPENDS mexSimpleMM.mex mexSimpleMMCUDA.mex)
