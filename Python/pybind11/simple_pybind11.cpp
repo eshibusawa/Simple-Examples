@@ -41,14 +41,6 @@ public:
 	{
 	}
 
-	py::object echo(const py::object &obj)
-	{
-		std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-		std::cerr << "value: " << obj.attr("value").cast<int>() << std::endl;
-		std::cerr << "mode: " << obj.attr("computation_mode").cast<ComputationMode>() << std::endl;
-		return py::none();
-	}
-
 	py::object compute(const py::object &obj, const py::array_t<float> &arr)
 	{
 		auto r = arr.unchecked<2>();
@@ -108,69 +100,6 @@ public:
 		return result;
 	}
 
-#if 0
-	py::object compute(const py::object &obj, const np::ndarray &arr)
-	{
-		const int nd = arr.get_nd();
-		auto ps = arr.get_shape();
-		auto pst = arr.get_strides();
-
-		// check dimension / shape / strides
-		if ((nd != 2) || (!(arr.get_flags() & np::ndarray::C_CONTIGUOUS)) ||
-			(arr.get_dtype() != np::dtype::get_builtin<float>()))
-		{
-			std::cerr << __FILE__ << " : " << __LINE__ << std::endl;
-			std::cerr << "only C-contiguous 2D float array is supported" << std::endl;
-			return py::object();
-		}
-
-		size_t sz = ps[0] * ps[1];
-		const float *parr = reinterpret_cast<const float *>(arr.get_data());
-		np::ndarray result = np::empty(py::make_tuple(ps[0], ps[1]), np::dtype::get_builtin<float>());
-		float *presult = reinterpret_cast<float *>(result.get_data());
-
-		const float value = py::extract<float>(obj.attr("value"));
-		ComputationMode m = py::extract<SimpleClass::ComputationMode>(obj.attr("computation_mode"));
-		switch(m)
-		{
-			case Add:
-				for (size_t k = 0; k < sz; k++)
-				{
-					presult[k] = parr[k] + value;
-				}
-			break;
-
-			case Sub:
-				for (size_t k = 0; k < sz; k++)
-				{
-					presult[k] = parr[k] - value;
-				}
-			break;
-
-			case Mul:
-				for (size_t k = 0; k < sz; k++)
-				{
-					presult[k] = parr[k] * value;
-				}
-			break;
-
-			case Div:
-				for (size_t k = 0; k < sz; k++)
-				{
-					presult[k] = parr[k] / value;
-				}
-			break;
-
-			default:
-				std::cerr << __FILE__ << " : " << __LINE__ << std::endl;
-				std::cerr << "unknown computation mode" << std::endl;
-				return py::object();
-			break;
-		}
-
-		return result;
-	}
-#endif
 };
 
 PYBIND11_MODULE(simple_pybind, m)
@@ -178,8 +107,7 @@ PYBIND11_MODULE(simple_pybind, m)
 	py::class_<SimpleClass> simple_class(m, "simple_class");
 
 	simple_class.def(py::init<>())
-		.def("compute", &SimpleClass::compute)
-		.def("echo", &SimpleClass::echo);
+		.def("compute", &SimpleClass::compute);
 
 	py::enum_<SimpleClass::ComputationMode>(simple_class, "computation_mode")
 		.value("add", SimpleClass::Add)

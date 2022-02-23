@@ -37,7 +37,5 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 	set(CMAKE_INSTALL_PREFIX "${Python_SITELIB}" CACHE PATH "..." FORCE)
 endif()
 
-add_library(simple_pybind MODULE simple_pybind11.cpp)
-target_link_libraries(simple_pybind PUBLIC pybind11::module)
-set_target_properties(simple_pybind PROPERTIES PREFIX "")
+pybind11_add_module(simple_pybind MODULE simple_pybind11.cpp)
 install(TARGETS simple_pybind DESTINATION .)
