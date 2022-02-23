@@ -41,9 +41,16 @@ public:
 	{
 	}
 
-	py::object compute(const py::object &obj, const py::array_t<float> &arr)
+	py::object compute(const py::object &obj, const py::array &arr)
 	{
-		auto r = arr.unchecked<2>();
+		py::buffer_info buf = arr.request();
+		if ((buf.ndim != 2) || (buf.strides[0] != buf.shape[1] * sizeof(float)) ||
+			(buf.format != py::format_descriptor<float>::format()))
+		{
+			throw std::runtime_error("only C-contiguous 2D float array is supported");
+		}
+
+		auto r = arr.unchecked<float, 2>();
 		auto result = py::array_t<float, py::array::c_style>({r.shape(0), r.shape(1)});
 
 		const float value = obj.attr("value").cast<float>();
