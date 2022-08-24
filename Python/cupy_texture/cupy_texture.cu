@@ -25,7 +25,7 @@
 //  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 extern "C" __global__ void copyTexture(
-	unsigned char* __restrict__ output,
+	TEXUTURE_TEST_PIXEL_TYPE* output,
 	cudaTextureObject_t tex,
 	int width,
 	int height)
@@ -38,5 +38,5 @@ extern "C" __global__ void copyTexture(
 		return;
 	}
 	const int indexOutput = indexX + indexY * width;
-	output[indexOutput] =  tex2D<unsigned char>(tex, indexX, indexY);
+	output[indexOutput] =  tex2D<TEXUTURE_TEST_PIXEL_TYPE>(tex, indexX, indexY);
 }

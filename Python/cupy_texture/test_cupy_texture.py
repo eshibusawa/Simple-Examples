@@ -42,16 +42,17 @@ class CupyTextureTestCase(TestCase):
         # load raw kernel
         with open(fpfn, 'r') as f:
             cuda_source = f.read()
+        cuda_source = cuda_source.replace('TEXUTURE_TEST_PIXEL_TYPE', 'unsigned char')
         self.module = cp.RawModule(code=cuda_source)
         self.copy_texture = self.module.get_function("copyTexture")
 
     def tearDown(self):
         pass
 
-    def bindress_texture_test(self):
+    def bindless_texture_test(self):
         array_in_cpu = (255 * np.random.rand(255, 255)).astype(np.uint8)
         array_in = cp.array(array_in_cpu, dtype=cp.uint8)
-        array_out = cp.zeros(array_in_cpu.shape, dtype=cp.uint8)
+        array_out = cp.zeros_like(array_in)
 
         assert array_in.flags.c_contiguous
         assert array_out.flags.c_contiguous
@@ -62,7 +63,7 @@ class CupyTextureTestCase(TestCase):
 
         resouce_descriptor = cp.cuda.texture.ResourceDescriptor(cp.cuda.runtime.cudaResourceTypeArray,
             cuArr = array_in_2d)
-        texture_descriptor = cp.cuda.texture.TextureDescriptor(addressModes = (cp.cuda.runtime.cudaAddressModeWrap, cp.cuda.runtime.cudaAddressModeWrap),
+        texture_descriptor = cp.cuda.texture.TextureDescriptor(addressModes = (cp.cuda.runtime.cudaAddressModeBorder, cp.cuda.runtime.cudaAddressModeBorder),
             filterMode=cp.cuda.runtime.cudaFilterModePoint,
             readMode=cp.cuda.runtime.cudaReadModeElementType,
             normalizedCoords = 0)
@@ -76,8 +77,74 @@ class CupyTextureTestCase(TestCase):
             args=(
                 array_out,
                 texuture_object,
-                array_in.shape[1],
-                array_in.shape[0]
+                array_out.shape[1],
+                array_out.shape[0]
+            )
+        )
+
+        err = np.abs(array_in_cpu - cp.asnumpy(array_out))
+        ok_(np.max(err) < self.eps)
+
+class CupyRGBATextureTestCase(TestCase):
+    def setUp(self):
+        self.eps = 2
+
+        dn = os.path.dirname(os.path.realpath(__file__))
+        fpfn = os.path.join(dn, 'cupy_texture.cu')
+        # load raw kernel
+        with open(fpfn, 'r') as f:
+            cuda_source = f.read()
+        cuda_source = cuda_source.replace('TEXUTURE_TEST_PIXEL_TYPE', 'uchar4')
+        self.module = cp.RawModule(code=cuda_source)
+        self.copy_texture = self.module.get_function("copyTexture")
+
+    def tearDown(self):
+        pass
+
+    def get_color_chart(self, sz):
+        xy = np.empty((sz[0], sz[1], 2), dtype=np.float32)
+        xy[:,:,0] = np.arange(0, sz[1])[np.newaxis,:] - sz[1]/2
+        xy[:,:,1] = np.arange(0, sz[0])[:,np.newaxis] - sz[0]/2
+
+        xy_rgb = np.empty((xy.shape[0], xy.shape[1], 4), dtype=np.uint8)
+        dir = np.arctan2(xy[:,:, 1], xy[:,:,0])
+        xy_rgb[:,:,2] = 127 * (np.sin(dir) + 1)
+        xy_rgb[:,:,1] = 127 * (np.cos(dir) + 1)
+        xy_rgb[:,:,0] = 127
+        xy_rgb[:,:,3] = 255
+
+        return xy_rgb
+
+    def bindless_texture_test(self):
+        array_in_cpu = self.get_color_chart((255, 255))
+        array_in = cp.array(array_in_cpu, dtype=cp.uint8)
+        array_out = cp.zeros_like(array_in)
+
+        assert array_in.flags.c_contiguous
+        assert array_out.flags.c_contiguous
+
+        channel_format_descriptor = cp.cuda.texture.ChannelFormatDescriptor(8, 8, 8, 8, cp.cuda.runtime.cudaChannelFormatKindUnsigned)
+        array_in_2d = cp.cuda.texture.CUDAarray(channel_format_descriptor, array_in.shape[1], array_in.shape[0])
+        array_in_2d.copy_from(array_in.reshape(array_in_cpu.shape[0], -1))
+
+        resouce_descriptor = cp.cuda.texture.ResourceDescriptor(cp.cuda.runtime.cudaResourceTypeArray,
+            cuArr = array_in_2d)
+        texture_descriptor = cp.cuda.texture.TextureDescriptor(addressModes = (cp.cuda.runtime.cudaAddressModeBorder, cp.cuda.runtime.cudaAddressModeBorder),
+            filterMode=cp.cuda.runtime.cudaFilterModePoint,
+            readMode=cp.cuda.runtime.cudaReadModeElementType,
+            normalizedCoords = 0)
+        texuture_object = cp.cuda.texture.TextureObject(resouce_descriptor, texture_descriptor)
+        sz_block = 16, 16
+        sz_grid = math.ceil(array_out.shape[1] / sz_block[1]), math.ceil(array_out.shape[0] / sz_block[0])
+        # call the kernel
+        self.copy_texture(
+            block=sz_block,
+            grid=sz_grid,
+            args=(
+                array_out,
+                texuture_object,
+                array_out.shape[1],
+                array_out.shape[0]
             )
         )
 
