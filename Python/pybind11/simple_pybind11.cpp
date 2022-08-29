@@ -109,6 +109,18 @@ public:
 
 };
 
+py::object get_class_a()
+{
+	py::module simple_class_main = py::module_::import("simple_class_main");
+	return simple_class_main.attr("class_a")();
+}
+
+py::object get_class_b()
+{
+	py::module simple_class_main = py::module_::import("simple_class_main");
+	return simple_class_main.attr("class_b")();
+}
+
 PYBIND11_MODULE(simple_pybind, m)
 {
 	py::class_<SimpleClass> simple_class(m, "simple_class");
@@ -122,4 +134,7 @@ PYBIND11_MODULE(simple_pybind, m)
 		.value("mul", SimpleClass::Mul)
 		.value("div", SimpleClass::Div)
 		.export_values();
+
+	m.def("get_class_a", &get_class_a);
+	m.def("get_class_b", &get_class_b);
 }

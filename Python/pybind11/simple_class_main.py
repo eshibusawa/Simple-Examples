@@ -27,6 +27,8 @@
 import numpy as np
 
 from simple_pybind import simple_class
+from simple_pybind import get_class_a
+from simple_pybind import get_class_b
 
 class class_a:
     def __init__(self):
@@ -38,7 +40,15 @@ class class_b:
         self.value = -1
         self.computation_mode = simple_class.computation_mode.sub
 
-arr = np.random.rand(3, 3).astype(np.float32)
-sc = simple_class()
-arr2 = sc.compute(class_a(), arr)
-arr2 = sc.compute(class_b(), arr)
+if __name__ == '__main__':
+    arr = np.random.rand(3, 3).astype(np.float32)
+    sc = simple_class()
+    arr2 = sc.compute(class_a(), arr)
+    print('err: {}'.format(np.max(np.abs(arr2 - (arr + 1)))))
+    arr2 = sc.compute(class_b(), arr)
+    print('err: {}'.format(np.max(np.abs(arr2 - (arr - (-1))))))
+
+    arr2 = sc.compute(get_class_a(), arr)
+    print('err: {}'.format(np.max(np.abs(arr2 - (arr + 1)))))
+    arr2 = sc.compute(get_class_b(), arr)
+    print('err: {}'.format(np.max(np.abs(arr2 - (arr - (-1))))))
