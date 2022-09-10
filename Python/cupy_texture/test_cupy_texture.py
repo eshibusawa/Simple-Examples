@@ -32,6 +32,7 @@ from nose.tools import ok_
 
 import numpy as np
 import cupy as cp
+import cv2
 
 class CupyTextureTestCase(TestCase):
     def setUp(self):
@@ -69,7 +70,7 @@ class CupyTextureTestCase(TestCase):
             normalizedCoords = 0)
         texuture_object = cp.cuda.texture.TextureObject(resouce_descriptor, texture_descriptor)
         sz_block = 16, 16
-        sz_grid = math.ceil(array_out.shape[1] / sz_block[1]), math.ceil(array_out.shape[0] / sz_block[0])
+        sz_grid = math.ceil(array_out.shape[1] / sz_block[0]), math.ceil(array_out.shape[0] / sz_block[1])
         # call the kernel
         self.copy_texture(
             block=sz_block,
@@ -101,7 +102,8 @@ class CupyRGBATextureTestCase(TestCase):
     def tearDown(self):
         pass
 
-    def get_color_chart(self, sz):
+    @staticmethod
+    def get_color_chart(sz):
         xy = np.empty((sz[0], sz[1], 2), dtype=np.float32)
         xy[:,:,0] = np.arange(0, sz[1])[np.newaxis,:] - sz[1]/2
         xy[:,:,1] = np.arange(0, sz[0])[:,np.newaxis] - sz[0]/2
@@ -135,7 +137,7 @@ class CupyRGBATextureTestCase(TestCase):
             normalizedCoords = 0)
         texuture_object = cp.cuda.texture.TextureObject(resouce_descriptor, texture_descriptor)
         sz_block = 16, 16
-        sz_grid = math.ceil(array_out.shape[1] / sz_block[1]), math.ceil(array_out.shape[0] / sz_block[0])
+        sz_grid = math.ceil(array_out.shape[1] / sz_block[0]), math.ceil(array_out.shape[0] / sz_block[1])
         # call the kernel
         self.copy_texture(
             block=sz_block,
@@ -149,4 +151,78 @@ class CupyRGBATextureTestCase(TestCase):
         )
 
         err = np.abs(array_in_cpu - cp.asnumpy(array_out))
+        ok_(np.max(err) < self.eps)
+
+class CupySphereMaskTestCase(TestCase):
+    def setUp(self):
+        self.eps = 2
+
+        dn = os.path.dirname(os.path.realpath(__file__))
+        fpfn = os.path.join(dn, 'cupy_texture.cu')
+        # load raw kernel
+        with open(fpfn, 'r') as f:
+            cuda_source = f.read()
+        cuda_source = cuda_source.replace('TEXUTURE_TEST_PIXEL_TYPE', 'uchar4')
+        self.module = cp.RawModule(code=cuda_source)
+        self.copy_texture = self.module.get_function("copyTextureMasked")
+
+    def tearDown(self):
+        pass
+
+    def sphere_mask_est(self):
+        array_in_cpu = CupyRGBATextureTestCase.get_color_chart((255, 255))
+        array_in = cp.array(array_in_cpu, dtype=cp.uint8)
+        array_out = cp.zeros_like(array_in)
+
+        mask_cpu = np.zeros(array_in_cpu.shape[:2], dtype = np.uint8)
+        cv2.circle(mask_cpu, (mask_cpu.shape[1]//2, mask_cpu.shape[0]//2), mask_cpu.shape[0]//2, 255, -1)
+        xy = np.empty((mask_cpu.shape[0], mask_cpu.shape[1], 2), dtype=np.uint32)
+        xy[:,:,0] = np.arange(0, mask_cpu.shape[1])[np.newaxis,:]
+        xy[:,:,1] = np.arange(0, mask_cpu.shape[0])[:,np.newaxis]
+        mask_xy_cpu = xy[mask_cpu != 0]
+        mask_xy = cp.array(mask_xy_cpu[np.newaxis,:,:])
+
+        assert array_out.flags.c_contiguous
+
+        channel_format_descriptor = cp.cuda.texture.ChannelFormatDescriptor(8, 8, 8, 8, cp.cuda.runtime.cudaChannelFormatKindUnsigned)
+        array_in_2d = cp.cuda.texture.CUDAarray(channel_format_descriptor, array_in.shape[1], array_in.shape[0])
+        array_in_2d.copy_from(array_in.reshape(array_in_cpu.shape[0], -1))
+
+        resouce_descriptor = cp.cuda.texture.ResourceDescriptor(cp.cuda.runtime.cudaResourceTypeArray,
+            cuArr = array_in_2d)
+        texture_descriptor = cp.cuda.texture.TextureDescriptor(addressModes = (cp.cuda.runtime.cudaAddressModeBorder, cp.cuda.runtime.cudaAddressModeBorder),
+            filterMode=cp.cuda.runtime.cudaFilterModePoint,
+            readMode=cp.cuda.runtime.cudaReadModeElementType,
+            normalizedCoords = 0)
+        texuture_object = cp.cuda.texture.TextureObject(resouce_descriptor, texture_descriptor)
+
+        channel_format_descriptor_mask = cp.cuda.texture.ChannelFormatDescriptor(32, 32, 0, 0, cp.cuda.runtime.cudaChannelFormatKindUnsigned)
+        mask_xy_2d = cp.cuda.texture.CUDAarray(channel_format_descriptor_mask, mask_xy.shape[1], mask_xy.shape[0])
+        mask_xy_2d.copy_from(mask_xy.reshape(mask_xy.shape[0], -1))
+
+        resouce_descriptor_mask = cp.cuda.texture.ResourceDescriptor(cp.cuda.runtime.cudaResourceTypeArray,
+            cuArr = mask_xy_2d)
+        texture_descriptor_mask = cp.cuda.texture.TextureDescriptor(addressModes = (cp.cuda.runtime.cudaAddressModeBorder, cp.cuda.runtime.cudaAddressModeBorder),
+            filterMode=cp.cuda.runtime.cudaFilterModePoint,
+            readMode=cp.cuda.runtime.cudaReadModeElementType,
+            normalizedCoords = 0)
+        texuture_object_mask = cp.cuda.texture.TextureObject(resouce_descriptor_mask, texture_descriptor_mask)
+
+        sz_block = 1024, 1
+        sz_grid = math.ceil(mask_xy.shape[1] / sz_block[0]), 1
+        # call the kernel
+        self.copy_texture(
+            block=sz_block,
+            grid=sz_grid,
+            args=(
+                array_out,
+                texuture_object,
+                texuture_object_mask,
+                mask_xy.shape[1],
+                array_out.shape[1],
+                array_out.shape[0]
+            )
+        )
+
+        err = np.abs(array_in_cpu[mask_cpu != 0] - cp.asnumpy(array_out[mask_cpu != 0]))
         ok_(np.max(err) < self.eps)

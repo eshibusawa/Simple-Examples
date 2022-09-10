@@ -40,3 +40,22 @@ extern "C" __global__ void copyTexture(
 	const int indexOutput = indexX + indexY * width;
 	output[indexOutput] =  tex2D<TEXUTURE_TEST_PIXEL_TYPE>(tex, indexX, indexY);
 }
+
+extern "C" __global__ void copyTextureMasked(
+	TEXUTURE_TEST_PIXEL_TYPE* output,
+	cudaTextureObject_t tex,
+	cudaTextureObject_t texMask,
+	int length,
+	int width,
+	int height)
+{
+	const int indexL = blockIdx.x * blockDim.x + threadIdx.x;
+	if (indexL >= length)
+	{
+		return;
+	}
+
+	const uint2 index = tex2D<uint2>(texMask, indexL, 0);
+	const int indexOutput = index.x + index.y * width;
+	output[indexOutput] =  tex2D<TEXUTURE_TEST_PIXEL_TYPE>(tex, index.x, index.y);
+}
