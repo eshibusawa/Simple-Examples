@@ -53,6 +53,7 @@ public:
 		m_cv.wait(shouldBeLocked, [this, value] {
 			return (m_waitingValue == value) || m_stop;
 		});
+		shouldBeLocked.unlock();
 	}
 
 	void setEvent(int value)
