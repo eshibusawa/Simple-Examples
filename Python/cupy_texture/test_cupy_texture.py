@@ -169,7 +169,7 @@ class CupySphereMaskTestCase(TestCase):
     def tearDown(self):
         pass
 
-    def sphere_mask_est(self):
+    def sphere_mask_test(self):
         array_in_cpu = CupyRGBATextureTestCase.get_color_chart((255, 255))
         array_in = cp.array(array_in_cpu, dtype=cp.uint8)
         array_out = cp.zeros_like(array_in)
