@@ -24,24 +24,23 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#define private public
 #include "complex_class.hpp"
+#undef private
+
+#include <iostream>
 
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
-
-#include <future>
-#include <mutex>
-#include <thread>
 
 namespace py = pybind11;
 
 class ComplexClassTester
 {
 private:
-	static const int m_waitMs;
 public:
 	ComplexClassTester():
-		m_previousState(-1)
+		m_debugger(m_cc.m_debugger)
 	{
 	}
 
@@ -49,50 +48,58 @@ public:
 	{
 		if (m_worker.joinable())
 		{
-			m_cc.m_stop = true;
-			m_cc.m_cv.notify_all();
-			std::this_thread::sleep_for(std::chrono::milliseconds(m_waitMs));
+			m_debugger.stop();
 			m_worker.join();
 		}
 	}
 
+	void incrementInternalState()
+	{
+		m_debugger.incrementInternalState();
+	}
+
+	void resume()
+	{
+		m_debugger.resume();
+	}
+
 	int getInternalState()
 	{
-		int ret = m_previousState;
-		do
-		{
-			{
-				std::lock_guard<std::mutex> lk(m_cc.m_mutex);
-				ret = m_cc.m_internalState;
-			}
-			std::this_thread::sleep_for(std::chrono::milliseconds(m_waitMs)); // loop wait, for simplicity
-		} while (ret == m_previousState);
-		m_cc.setEvent(ret);
-		m_previousState = ret;
+		std::vector<void *> d;
+		m_debugger.get(0, d);
+		int ret = *(reinterpret_cast<int *>(d[0]));
 		return ret;
 	}
 
-	void startWorker()
+	void setInternalState(int value)
 	{
-		if (!m_cc.m_stop)
+		std::vector<void *> d;
+		m_debugger.get(0, d);
+		*(reinterpret_cast<int *>(d[0])) = value;
+	}
+
+	void startWorker(int numSteps)
+	{
+		if (!m_debugger.m_stop)
 		{
 			return;
 		}
-		m_cc.m_stop = false;
-		m_worker = std::thread([this]{m_cc.complexMethod();});
+		m_debugger.clear();
+		m_debugger.m_enable = true;
+		m_debugger.m_stop = false;
+		m_worker = std::thread([this, numSteps]{m_cc.complexMethod(numSteps);});
 		while (!m_worker.joinable())
 		{
-			std::this_thread::sleep_for(std::chrono::milliseconds(m_waitMs));
+			std::this_thread::sleep_for(std::chrono::milliseconds(m_debugger.m_waitMs));
 		}
 	}
 
 private:
 	ComplexClass m_cc;
+	MTDebugger &m_debugger;
 	std::thread m_worker;
-	int m_previousState;
 };
 
-const int ComplexClassTester::m_waitMs = 10;
 
 PYBIND11_MODULE(complex_class, m)
 {
@@ -100,6 +107,9 @@ PYBIND11_MODULE(complex_class, m)
 
 	complex_class_tester.def(py::init<>())
 		.def("get_internal_state", &ComplexClassTester::getInternalState)
+		.def("set_internal_state", &ComplexClassTester::setInternalState)
 		.def("start_worker", &ComplexClassTester::startWorker)
+		.def("increment_internal_state", &ComplexClassTester::incrementInternalState)
+		.def("resume", &ComplexClassTester::resume)
 		;
 }

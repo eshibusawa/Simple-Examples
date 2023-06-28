@@ -27,54 +27,27 @@
 #ifndef COMPLEX_CLASS_HPP_
 #define COMPLEX_CLASS_HPP_
 
-#include <atomic>
-#include <condition_variable>
-#include <iostream>
-#include <mutex>
-#include <thread>
+#include "mt_debugger.hpp"
 
-class ComplexClassTester;
+#include <iostream>
 
 class ComplexClass
 {
-friend ::ComplexClassTester;
-public:
-
 public:
 	ComplexClass()
-		: m_internalState(-1),
-		m_waitingValue(-1),
-		m_stop(true)
 	{
 	}
 
-	void waitEvent(int value, std::unique_lock<std::mutex> &shouldBeLocked)
-	{
-		m_cv.wait(shouldBeLocked, [this, value] {
-			return (m_waitingValue == value) || m_stop;
-		});
-		shouldBeLocked.unlock();
-	}
-
-	void setEvent(int value)
-	{
-		m_waitingValue = value;
-		m_cv.notify_all();
-	}
-
-	bool complexMethod()
+	bool complexMethod(int numSteps)
 	{
 		std::cerr << "start method!" << std::endl;
-		m_waitingValue = -1;
-		const int numSteps = 5;
+		int internalState = 0;
+		m_debugger.push(&internalState);
 		for (int k = 0; k < numSteps; k++)
 		{
-			{
-				std::unique_lock<std::mutex> lk(m_mutex);
-				std::cerr << "step " << k << "..." << std::endl;
-				m_internalState = k;
-				waitEvent(k, lk);
-			}
+			m_debugger.conditionalStep(true);
+			std::cerr << "step " << k << "..." << std::endl;
+			std::cerr << " state " << internalState << std::endl;
 		}
 
 		std::cerr << "done method!" << std::endl;
@@ -82,11 +55,7 @@ public:
 	}
 
 private:
-	int m_internalState;
-	std::condition_variable m_cv;
-	std::mutex m_mutex;
-	std::atomic<int> m_waitingValue;
-	std::atomic<bool> m_stop;
+	MTDebugger m_debugger;
 };
 
 #endif // COMPLEX_CLASS_HPP_

@@ -24,13 +24,18 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import numpy as np
-
 from complex_class import complex_class_tester
 
 if __name__ == '__main__':
+    n_steps = 5
+    value_to_be_set = -10
     cct = complex_class_tester()
-    cct.start_worker()
-    print(cct.get_internal_state())
-    print(cct.get_internal_state())
-    print(cct.get_internal_state())
+    cct.start_worker(n_steps)
+    for k in range(n_steps):
+        cct.increment_internal_state()
+        print('local variable in complex class: {}'.format(cct.get_internal_state()))
+        if k == 3:
+            cct.set_internal_state(value_to_be_set) # modify local variable in complex class
+            assert value_to_be_set == cct.get_internal_state()
+            print('local variable in complex class is modified successfully')
+        cct.resume()
