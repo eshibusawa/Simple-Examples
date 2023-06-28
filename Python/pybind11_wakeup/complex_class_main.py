@@ -37,5 +37,5 @@ if __name__ == '__main__':
         if k == 3:
             cct.set_internal_state(value_to_be_set) # modify local variable in complex class
             assert value_to_be_set == cct.get_internal_state()
-            print('local variable in complex class is modified successfully')
+            print('local variable in complex class is modified successfully: {}'.format(value_to_be_set))
         cct.resume()

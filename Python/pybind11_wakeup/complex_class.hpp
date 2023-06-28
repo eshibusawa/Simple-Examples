@@ -45,9 +45,13 @@ public:
 		m_debugger.push(&internalState);
 		for (int k = 0; k < numSteps; k++)
 		{
-			m_debugger.conditionalStep(true);
 			std::cerr << "step " << k << "..." << std::endl;
+			{
+				std::lock_guard<std::mutex> lk(m_debugger.m_mutex);
+				internalState += k;
+			}
 			std::cerr << " state " << internalState << std::endl;
+			m_debugger.conditionalStep(true);
 		}
 
 		std::cerr << "done method!" << std::endl;
