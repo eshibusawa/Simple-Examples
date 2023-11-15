@@ -24,32 +24,10 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-cmake_minimum_required(VERSION 3.18)
+import cupy as cp
 
-project(NUMPY_PTR CXX)
-set(CMAKE_VERBOSE_MAKEFILE 1)
-
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
-
-# Python / Anaconda
-find_package(Python COMPONENTS Interpreter Development)
-set(pybind11_DIR "${Python_SITELIB}/pybind11/share/cmake/pybind11")
-find_package(pybind11 CONFIG REQUIRED)
-
-if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-	set(CMAKE_INSTALL_PREFIX "${Python_SITELIB}" CACHE PATH "..." FORCE)
-endif()
-set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}" "${Python_SITELIB}/../../")
-
-pybind11_add_module(util_array_impl MODULE
-	utilArray.cpp
-	)
-target_include_directories(util_array_impl PRIVATE
-install(TARGETS util_array_impl DESTINATION .)
-
-pybind11_add_module(vector_container MODULE
-	vectorContainer.cpp
-	)
-install(TARGETS vector_container DESTINATION .)
+def get_array_from_ptr(module, ptr, shape, dtype):
+    mem = cp.cuda.UnownedMemory(ptr, 0, module)
+    memptr = cp.cuda.MemoryPointer(mem, 0)
+    arr = cp.ndarray(shape=shape, dtype=dtype, memptr=memptr)
+    return arr

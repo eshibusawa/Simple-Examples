@@ -26,12 +26,18 @@
 
 cmake_minimum_required(VERSION 3.18)
 
-project(NUMPY_PTR CXX)
+project(NUMPY_PTR CUDA CXX)
 set(CMAKE_VERBOSE_MAKEFILE 1)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
+
+# CUDA Toolkit
+find_package(CUDAToolkit)
+if(CUDAToolkit_FOUND)
+	message(STATUS "CUDA Toolkit enabled")
+endif()
 
 # Python / Anaconda
 find_package(Python COMPONENTS Interpreter Development)
@@ -43,13 +49,9 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 endif()
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}" "${Python_SITELIB}/../../")
 
-pybind11_add_module(util_array_impl MODULE
-	utilArray.cpp
+pybind11_add_module(device_memory_container MODULE
+	deviceMemoryContainer.cpp
+	deviceMemoryContainer.cu
 	)
-target_include_directories(util_array_impl PRIVATE
-install(TARGETS util_array_impl DESTINATION .)
-
-pybind11_add_module(vector_container MODULE
-	vectorContainer.cpp
-	)
-install(TARGETS vector_container DESTINATION .)
+set_target_properties(device_memory_container PROPERTIES CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES})
+install(TARGETS device_memory_container DESTINATION .)
