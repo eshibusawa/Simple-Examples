@@ -26,7 +26,7 @@
 
 cmake_minimum_required(VERSION 3.18)
 
-project(NUMPY_PTR CUDA CXX)
+project(CUPY_PTR CUDA CXX)
 set(CMAKE_VERBOSE_MAKEFILE 1)
 
 set(CMAKE_CXX_STANDARD 11)

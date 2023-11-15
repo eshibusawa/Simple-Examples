@@ -65,10 +65,3 @@ class UtilCudaArrayTestCase(TestCase):
         arr_gpu[:] = arr_gpu_ref
         err = cp.abs(arr_gpu_ref - arr_gpu)
         ok_(cp.max(err).get() < self.eps)
-
-if __name__ == '__main__':
-    aa = UtilCudaArrayTestCase()
-    aa.setUp()
-    aa.to_array_test()
-    aa.from_array_test()
-    aa.tearDown()
