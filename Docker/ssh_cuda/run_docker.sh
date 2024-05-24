@@ -32,6 +32,7 @@ Help()
    echo "Script to build docker continer for cuda"
    echo
    echo "-p     port settings for sshd"
+   echo "-g     use GUI"
    echo "-m     mount settings source:destination"
    echo "-h     Help."
    echo
@@ -39,18 +40,26 @@ Help()
 
 # set default
 SSHD_PORT_ARG=10022
+USE_GUI_ARG=''
 
-while getopts p:m:h flag
+while getopts "p:m:gh" flag
 do
+    echo ${flag} ${OPTARG}
     case "${flag}" in
         p) SSHD_PORT_ARG=${OPTARG};;
         m) MOUNT_DIR_ARG=${OPTARG};;
+        g) USE_GUI_ARG="--privileged \
+            -e DISPLAY=$DISPLAY \
+            -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
+            -v /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket \
+            -v /dev/shm:/dev/shm";;
         h) Help
             exit;;
     esac
 done
 
-docker run -d --gpus all --restart always \
+docker run -d -it --gpus all \
  -p ${SSHD_PORT_ARG}:22 \
  -v ${MOUNT_DIR_ARG} \
+  ${USE_GUI_ARG} \
   u2204c118

@@ -36,7 +36,14 @@ RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
 # install ssh etc.
 RUN apt clean && \
   apt update && \
-  apt install -y openssh-server sudo git libgl1-mesa-dev
+  apt install -y openssh-server sudo git cmake wget libgl1-mesa-dev
+EXPOSE 22
+
+# install vscode
+RUN wget https://packages.microsoft.com/keys/microsoft.asc -O - | sudo gpg --dearmor > /usr/share/keyrings/microsoft.gpg
+RUN echo "deb [signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/vscode stable main" > /etc/apt/sources.list.d/vscode.list
+RUN apt update && \
+  apt install -y code fonts-noto-cjk
 
 # add user
 RUN useradd -rm -d /home/${USERNAME} -s /bin/bash -u ${UID} ${USERNAME}
@@ -56,8 +63,4 @@ RUN bash Miniforge3-$(uname)-$(uname -m).sh -b -p /home/${USERNAME}/anaconda3
 RUN ./anaconda3/bin/conda init
 RUN rm -f Miniforge3-$(uname)-$(uname -m).sh
 
-# start ssh
-USER root
-RUN mkdir -p /var/run/sshd
-EXPOSE 22
-CMD ["/usr/sbin/sshd","-D"]
+USER ${USERNAME}
