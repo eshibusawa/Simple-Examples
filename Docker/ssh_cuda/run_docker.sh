@@ -62,4 +62,4 @@ docker run -d -it --gpus all \
  -p ${SSHD_PORT_ARG}:22 \
  -v ${MOUNT_DIR_ARG} \
   ${USE_GUI_ARG} \
-  u2204c118
+  u2204c125

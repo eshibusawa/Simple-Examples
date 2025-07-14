@@ -24,7 +24,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-FROM nvidia/cuda:11.8.0-devel-ubuntu22.04
+FROM nvidia/cuda:12.5.1-devel-ubuntu22.04
 
 ARG USERNAME=john-smith
 ARG PASSWORD=password
@@ -36,7 +36,7 @@ RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
 # install ssh etc.
 RUN apt clean && \
   apt update && \
-  apt install -y openssh-server sudo git cmake wget libgl1-mesa-dev
+  apt install -y openssh-server sudo git nano cmake wget rsync libgl1-mesa-dev
 EXPOSE 22
 
 # install vscode

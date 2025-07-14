@@ -55,4 +55,4 @@ read -p password?: -s PASSWORD
 echo
 
 docker build --quiet --build-arg USERNAME=$USERNAME_ARG --build-arg PASSWORD=$PASSWORD --build-arg UID=$UID_ARG \
-  -t u2204c118 .
+  -t u2204c125 .
