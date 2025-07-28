@@ -1,6 +1,6 @@
 # BSD 2-Clause License
 #
-# Copyright (c) 2023, Eijiro SHIBUSAWA
+# Copyright (c) 2025, Eijiro SHIBUSAWA
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -24,9 +24,10 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from typing import Tuple
 import cupy as cp
 
-def get_array_from_ptr(module, ptr, shape, dtype):
+def get_array_from_ptr(module: object, ptr: int, shape: Tuple[int, ...], dtype: cp.dtype):
     mem = cp.cuda.UnownedMemory(ptr, 0, module)
     memptr = cp.cuda.MemoryPointer(mem, 0)
     arr = cp.ndarray(shape=shape, dtype=dtype, memptr=memptr)

@@ -1,6 +1,6 @@
 # BSD 2-Clause License
 #
-# Copyright (c) 2024, Eijiro SHIBUSAWA
+# Copyright (c) 2025, Eijiro SHIBUSAWA
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,14 +36,20 @@ RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
 # install ssh etc.
 RUN apt clean && \
   apt update && \
-  apt install -y openssh-server sudo git nano cmake wget rsync libgl1-mesa-dev
+  apt install -y tzdata openssh-server sudo git nano cmake wget rsync libgl1-mesa-dev
 EXPOSE 22
 
 # install vscode
-RUN wget https://packages.microsoft.com/keys/microsoft.asc -O - | sudo gpg --dearmor > /usr/share/keyrings/microsoft.gpg
+RUN wget https://packages.microsoft.com/keys/microsoft.asc -O - | gpg --dearmor > /usr/share/keyrings/microsoft.gpg
 RUN echo "deb [signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/vscode stable main" > /etc/apt/sources.list.d/vscode.list
 RUN apt update && \
   apt install -y code fonts-noto-cjk
+
+# install cmake
+RUN wget https://apt.kitware.com/keys/kitware-archive-latest.asc -O - 2>/dev/null | gpg --dearmor > /usr/share/keyrings/kitware-archive-keyring.gpg
+RUN echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ jammy main" > /etc/apt/sources.list.d/kitware.list
+RUN apt update && \
+  apt install -y cmake
 
 # add user
 RUN useradd -rm -d /home/${USERNAME} -s /bin/bash -u ${UID} ${USERNAME}

@@ -1,6 +1,6 @@
 # BSD 2-Clause License
 #
-# Copyright (c) 2023, Eijiro SHIBUSAWA
+# Copyright (c) 2025, Eijiro SHIBUSAWA
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -25,74 +25,79 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-
-from unittest import TestCase
-from nose.tools import ok_
+import pytest
+from typing import Dict, Any, Generator
 
 import numpy as np
+from numpy.testing import assert_allclose
 import cupy as cp
 
-class VecOpTestCase(TestCase):
-    def setUp(self):
-        self.eps = 1E-5
+@pytest.fixture(scope='module')
+def setup_module() -> Generator[Dict[str, Any], Any, None]:
+    eps = 1E-5
 
-        dn = os.path.dirname(os.path.realpath(__file__))
-        fpfn = os.path.join(dn, 'cupy_vecop.cu')
-        # load raw kernel
-        with open(fpfn, 'r') as f:
-            cuda_source = f.read()
-        self.module = cp.RawModule(code=cuda_source)
-        self.module.compile()
+    dn = os.path.dirname(os.path.realpath(__file__))
+    fpfn = os.path.join(dn, 'cupy_vecop.cu')
+    with open(fpfn, 'r') as f:
+        cuda_source = f.read()
+    module = cp.RawModule(code=cuda_source)
+    module.compile()
 
-    def tearDown(self):
-        pass
+    yield {
+        'module':module,
+        'eps': eps
+    }
 
-    def plus_test(self):
-        sz = 1024
-        A = np.random.rand(sz).astype(np.float32)
-        B = np.random.rand(sz).astype(np.float32)
-        A_gpu = cp.array(A, dtype=cp.float32)
-        B_gpu = cp.array(B, dtype=cp.float32)
-        C_gpu = cp.empty_like(A)
+def test_plus(setup_module: Generator[Dict[str, Any], Any, None]) -> None:
+    module = setup_module['module']
+    eps = setup_module['eps']
 
-        gpu_func = self.module.get_function("vecPlus")
-        gpu_func(
-            block=(sz,),
-            grid=(1,),
-            args=(
-                C_gpu,
-                A_gpu,
-                B_gpu,
-                sz
-            )
+    sz = 1024
+    A = np.random.rand(sz).astype(np.float32)
+    B = np.random.rand(sz).astype(np.float32)
+    A_gpu = cp.array(A, dtype=cp.float32)
+    B_gpu = cp.array(B, dtype=cp.float32)
+    C_gpu = cp.empty_like(A)
+
+    gpu_func = module.get_function("vecPlus")
+    gpu_func(
+        block=(sz,),
+        grid=(1,),
+        args=(
+            C_gpu,
+            A_gpu,
+            B_gpu,
+            sz
         )
-        cp.cuda.runtime.deviceSynchronize()
+    )
+    cp.cuda.runtime.deviceSynchronize()
 
-        C = A + B
-        err = np.abs(C - C_gpu.get())
-        ok_(np.max(err) < self.eps)
+    C = A + B
+    assert_allclose(C, C_gpu.get(), rtol=eps, atol=0)
 
-    def minus_test(self):
-        sz = 1024
-        A = np.random.rand(sz).astype(np.float32)
-        B = np.random.rand(sz).astype(np.float32)
-        A_gpu = cp.array(A, dtype=cp.float32)
-        B_gpu = cp.array(B, dtype=cp.float32)
-        C_gpu = cp.empty_like(A)
+def test_minus(setup_module: Generator[Dict[str, Any], Any, None]) -> None:
+    module = setup_module['module']
+    eps = setup_module['eps']
 
-        gpu_func = self.module.get_function("vecMinus")
-        gpu_func(
-            block=(sz,),
-            grid=(1,),
-            args=(
-                C_gpu,
-                A_gpu,
-                B_gpu,
-                sz
-            )
+    sz = 1024
+    A = np.random.rand(sz).astype(np.float32)
+    B = np.random.rand(sz).astype(np.float32)
+    A_gpu = cp.array(A, dtype=cp.float32)
+    B_gpu = cp.array(B, dtype=cp.float32)
+    C_gpu = cp.empty_like(A)
+
+    gpu_func = module.get_function("vecMinus")
+    gpu_func(
+        block=(sz,),
+        grid=(1,),
+        args=(
+            C_gpu,
+            A_gpu,
+            B_gpu,
+            sz
         )
-        cp.cuda.runtime.deviceSynchronize()
+    )
+    cp.cuda.runtime.deviceSynchronize()
 
-        C = A - B
-        err = np.abs(C - C_gpu.get())
-        ok_(np.max(err) < self.eps)
+    C = A - B
+    assert_allclose(C, C_gpu.get(), rtol=eps, atol=0)

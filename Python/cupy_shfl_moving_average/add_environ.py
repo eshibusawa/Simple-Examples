@@ -1,6 +1,6 @@
 # BSD 2-Clause License
 #
-# Copyright (c) 2025, Eijiro SHIBUSAWA
+# Copyright (c) 2023, Eijiro SHIBUSAWA
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -24,16 +24,6 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-name: simple-examples
-channels:
-  - conda-forge
-dependencies:
-  - cupy
-  - cuda-version=12.5
-  - ipython
-  - nose
-  - py-opencv
-  - pybind11
-  - pytest
-  - python=3.10.*
-prefix: /path/to/your/envs/simple-examples
+import os
+if os.environ.get('NVCC') is None:
+    os.environ['NVCC'] = '/usr/local/cuda/bin/nvcc'

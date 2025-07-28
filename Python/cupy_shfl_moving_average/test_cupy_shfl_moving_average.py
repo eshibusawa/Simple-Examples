@@ -1,6 +1,6 @@
 # BSD 2-Clause License
 #
-# Copyright (c) 2023, Eijiro SHIBUSAWA
+# Copyright (c) 2025, Eijiro SHIBUSAWA
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -24,98 +24,98 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import math
 import os
-
-from unittest import TestCase
-from nose.tools import ok_
+import math
+import pytest
+from typing import Dict, Any, Generator
 
 import numpy as np
+from numpy.testing import assert_allclose
+import add_environ
+import cupy as cp
 
-class ShflMovingAverageTestCase(TestCase):
-    def setUp(self):
-        if os.environ.get('NVCC') is None:
-            os.environ['NVCC'] = '/usr/local/cuda/bin/nvcc'
-        import cupy as cp
+@pytest.fixture(scope='function')
+def setup_module() -> Generator[Dict[str, Any], Any, None]:
+    eps = 1E-5
+    window_size = 8
+    block_size = 128
 
-        self.eps = 1E-5
-        self.window_size = 8
-        self.block_size = 128
+    dn = os.path.dirname(os.path.realpath(__file__))
+    fpfn = os.path.join(dn, 'shfl_moving_average.cu')
+    with open(fpfn, 'r') as f:
+        cuda_source = f.read()
 
-        dn = os.path.dirname(os.path.realpath(__file__))
-        fpfn = os.path.join(dn, 'shfl_moving_average.cu')
-        # load raw kernel
-        with open(fpfn, 'r') as f:
-            cuda_source = f.read()
+    cuda_source = cuda_source.replace('WINDOW_SIZE', str(window_size))
+    cuda_source = cuda_source.replace('BLOCK_SIZE', str(block_size))
 
-        cuda_source = cuda_source.replace('WINDOW_SIZE', str(self.window_size))
-        cuda_source = cuda_source.replace('BLOCK_SIZE', str(self.block_size))
+    module = cp.RawModule(code=cuda_source, backend='nvcc')
+    module.compile()
 
-        self.module = cp.RawModule(code=cuda_source, backend='nvcc')
-        self.module.compile()
+    yield {
+        'module':module,
+        'eps': eps,
+        'block_size': block_size
+    }
 
-    def tearDown(self):
-        pass
+def test_moving_average_test(setup_module: Generator[Dict[str, Any], Any, None]) -> None:
+    module = setup_module['module']
+    eps = setup_module['eps']
+    block_size = setup_module['block_size']
 
-    def moving_average_test(self):
-        import cupy as cp
-        length = 1 << 14
-        array_in = np.random.rand(length).astype(np.float32)
+    length = 1 << 14
+    array_in = np.random.rand(length).astype(np.float32)
 
-        array_in_gpu = cp.array(array_in)
-        array_out_ref_gpu = cp.empty_like(array_in_gpu)
-        assert array_in_gpu.flags.c_contiguous
-        assert array_out_ref_gpu.flags.c_contiguous
+    array_in_gpu = cp.array(array_in)
+    array_out_ref_gpu = cp.empty_like(array_in_gpu)
+    assert array_in_gpu.flags.c_contiguous
+    assert array_out_ref_gpu.flags.c_contiguous
 
-        sz_block = 1024,
-        sz_grid = math.ceil(array_in_gpu.shape[0] / sz_block[0]),
-        gpu_func = self.module.get_function("movingAverageNaive")
-        start = cp.cuda.Event()
-        end = cp.cuda.Event()
-        start.record()
-        start.synchronize()
-        gpu_func(
-            block=sz_block,
-            grid=sz_grid,
-            args=(
-                array_out_ref_gpu,
-                array_in_gpu,
-                array_in_gpu.shape[0]
-            )
+    sz_block = 1024,
+    sz_grid = math.ceil(array_in_gpu.shape[0] / sz_block[0]),
+    gpu_func = module.get_function("movingAverageNaive")
+    start = cp.cuda.Event()
+    end = cp.cuda.Event()
+    start.record()
+    start.synchronize()
+    gpu_func(
+        block=sz_block,
+        grid=sz_grid,
+        args=(
+            array_out_ref_gpu,
+            array_in_gpu,
+            array_in_gpu.shape[0]
         )
-        cp.cuda.runtime.deviceSynchronize()
-        end.record()
-        end.synchronize()
-        msec_naive = cp.cuda.get_elapsed_time(start, end)
+    )
+    cp.cuda.runtime.deviceSynchronize()
+    end.record()
+    end.synchronize()
+    msec_naive = cp.cuda.get_elapsed_time(start, end)
 
-        array_out_gpu = cp.full_like(array_in_gpu, -1)
-        assert array_out_gpu.flags.c_contiguous
-        sz_block = self.block_size,
-        sz_grid = math.ceil(array_in_gpu.shape[0] / sz_block[0]),
-        gpu_func = self.module.get_function("movingAverageShfl")
-        start = cp.cuda.Event()
-        end = cp.cuda.Event()
-        start.record()
-        start.synchronize()
-        gpu_func(
-            block=sz_block,
-            grid=sz_grid,
-            args=(
-                array_out_gpu,
-                array_in_gpu,
-                array_in_gpu.shape[0]
-            )
+    array_out_gpu = cp.full_like(array_in_gpu, -1)
+    assert array_out_gpu.flags.c_contiguous
+    sz_block = block_size,
+    sz_grid = math.ceil(array_in_gpu.shape[0] / sz_block[0]),
+    gpu_func = module.get_function("movingAverageShfl")
+    start = cp.cuda.Event()
+    end = cp.cuda.Event()
+    start.record()
+    start.synchronize()
+    gpu_func(
+        block=sz_block,
+        grid=sz_grid,
+        args=(
+            array_out_gpu,
+            array_in_gpu,
+            array_in_gpu.shape[0]
         )
-        cp.cuda.runtime.deviceSynchronize()
-        end.record()
-        end.synchronize()
-        msec_shfl = cp.cuda.get_elapsed_time(start, end)
+    )
+    cp.cuda.runtime.deviceSynchronize()
+    end.record()
+    end.synchronize()
+    msec_shfl = cp.cuda.get_elapsed_time(start, end)
 
-        array_out_ref = array_out_ref_gpu.get()
-        array_out = array_out_gpu.get()
-        err = np.abs(array_out_ref - array_out)
-        ok_(np.max(err) < self.eps)
+    assert_allclose(array_out_ref_gpu.get(), array_out_gpu.get(), rtol=eps)
 
-        print('')
-        print('Elapsed Time Naive: {} [msec]'.format(msec_naive))
-        print('Elapsed Time Shfl: {} [msec]'.format(msec_shfl))
+    print('')
+    print(f'Elapsed Time Naive: {msec_naive} [msec]')
+    print(f'Elapsed Time Shfl: {msec_shfl} [msec]')

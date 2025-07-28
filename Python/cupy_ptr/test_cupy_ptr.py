@@ -1,6 +1,6 @@
 # BSD 2-Clause License
 #
-# Copyright (c) 2023, Eijiro SHIBUSAWA
+# Copyright (c) 2025, Eijiro SHIBUSAWA
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -24,44 +24,49 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from unittest import TestCase
-from nose.tools import ok_
+import pytest
+from typing import Dict, Any, Generator
 
 import numpy as np
+from numpy.testing import assert_allclose
 import cupy as cp
 
 import util_cuda_array as uca
 import device_memory_container
 
-class UtilCudaArrayTestCase(TestCase):
-    def setUp(self):
-        self.eps = 1E-7
 
-    def tearDown(self):
-        pass
+@pytest.fixture(scope='function')
+def setup_ptr_module() -> Generator[Dict[str, Any], Any, None]:
+    eps = 1E-7
+    yield {
+        'eps': eps,
+    }
 
-    def to_array_test(self):
-        dmc = device_memory_container.device_memory_container()
-        arr_ref = np.array(dmc.get(), dtype=np.float32)
-        arr = np.arange(0, arr_ref.shape[0], dtype=arr_ref.dtype)
-        err = np.abs(arr_ref - arr)
-        ok_(np.max(err) < self.eps)
+def test_to_array(setup_ptr_module: Generator[Dict[str, Any], Any, None]) -> None:
+    eps = setup_ptr_module['eps']
 
-        d = dmc.get_ptr()
-        ptr = d["ptr"]
-        arr_gpu = uca.get_array_from_ptr(self, ptr, arr_ref.shape, arr_ref.dtype)
-        arr_gpu_ref = cp.arange(0, arr_ref.shape[0], dtype=arr_ref.dtype)
-        err = cp.abs(arr_gpu_ref - arr_gpu)
-        ok_(cp.max(err).get() < self.eps)
+    dmc = device_memory_container.device_memory_container()
+    arr_ref = np.array(dmc.get(), dtype=np.float32)
+    arr = np.arange(0, arr_ref.shape[0], dtype=arr_ref.dtype)
+    assert_allclose(arr_ref, arr, rtol=eps)
 
-    def from_array_test(self):
-        dmc = device_memory_container.device_memory_container()
-        arr = np.array(dmc.get(), dtype=np.float32)
+    d = dmc.get_ptr()
+    ptr = d['ptr']
+    assert arr_ref.dtype == cp.float32
+    arr_gpu = uca.get_array_from_ptr(dmc, ptr, arr_ref.shape, arr_ref.dtype)
+    arr_gpu_ref = cp.arange(0, arr_ref.shape[0], dtype=arr_ref.dtype)
+    assert_allclose(arr_gpu_ref.get(), arr_gpu.get(), rtol=eps)
 
-        d = dmc.get_ptr()
-        ptr = d["ptr"]
-        arr_gpu_ref = cp.random.rand(arr.shape[0]).astype(cp.float32)
-        arr_gpu = uca.get_array_from_ptr(self, ptr, arr_gpu_ref.shape, arr_gpu_ref.dtype)
-        arr_gpu[:] = arr_gpu_ref
-        err = cp.abs(arr_gpu_ref - arr_gpu)
-        ok_(cp.max(err).get() < self.eps)
+def test_from_array(setup_ptr_module: Generator[Dict[str, Any], Any, None]) -> None:
+    eps = setup_ptr_module['eps']
+
+    dmc = device_memory_container.device_memory_container()
+    arr = np.array(dmc.get(), dtype=np.float32)
+
+    d = dmc.get_ptr()
+    ptr = d['ptr']
+    arr_gpu_ref = cp.random.rand(arr.shape[0]).astype(cp.float32)
+    assert arr_gpu_ref.dtype == cp.float32
+    arr_gpu = uca.get_array_from_ptr(dmc, ptr, arr_gpu_ref.shape, arr_gpu_ref.dtype)
+    arr_gpu[:] = arr_gpu_ref
+    assert_allclose(arr_gpu_ref.get(), arr_gpu.get(), rtol=eps)

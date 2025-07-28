@@ -1,6 +1,6 @@
 # BSD 2-Clause License
 #
-# Copyright (c) 2023, Eijiro SHIBUSAWA
+# Copyright (c) 2025, Eijiro SHIBUSAWA
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -25,73 +25,81 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-
-from unittest import TestCase
-from nose.tools import ok_
+import pytest
+from typing import Dict, Any, Generator
 
 import numpy as np
+from numpy.testing import assert_allclose
 
-class ArgminTestCase(TestCase):
-    def setUp(self):
-        if os.environ.get('NVCC') is None:
-            os.environ['NVCC'] = '/usr/local/cuda/bin/nvcc'
-        import cupy as cp
+@pytest.fixture(scope='function')
+def setup_argmin_module() -> Generator[Dict[str, Any], Any, None]:
+    if os.environ.get('NVCC') is None:
+        os.environ['NVCC'] = '/usr/local/cuda/bin/nvcc'
+    import cupy as cp
 
-        self.max_arr = 512
-        self.block_threads = self.max_arr
+    max_arr = 512
+    block_threads = max_arr
 
-        dn = os.path.dirname(os.path.realpath(__file__))
-        fpfn = os.path.join(dn, 'cub_argmin.cu')
-        with open(fpfn, 'r') as f:
-            cuda_source = f.read()
+    dn = os.path.dirname(os.path.realpath(__file__))
+    fpfn = os.path.join(dn, 'cub_argmin.cu')
+    with open(fpfn, 'r') as f:
+        cuda_source = f.read()
 
-        cuda_source = cuda_source.replace('KEY_TYPE', 'int')
-        cuda_source = cuda_source.replace('VALUE_TYPE', 'float')
-        cuda_source = cuda_source.replace('BLOCK_THREADS', str(self.block_threads))
+    cuda_source = cuda_source.replace('KEY_TYPE', 'int')
+    cuda_source = cuda_source.replace('VALUE_TYPE', 'float')
+    cuda_source = cuda_source.replace('BLOCK_THREADS', str(block_threads))
 
-        self.module = cp.RawModule(code=cuda_source, backend='nvcc')
-        self.module.compile()
+    module = cp.RawModule(code=cuda_source, backend='nvcc')
+    module.compile()
 
-        self.eps = 1E-7
+    eps = 1E-7
 
-    def tearDown(self):
-        pass
+    yield {
+        'module': module,
+        'max_arr': max_arr,
+        'block_threads': block_threads,
+        'eps':eps
+    }
 
-    def argmin_test(self):
-        import cupy as cp
+def test_argmin(setup_argmin_module: Generator[Dict[str, Any], Any, None]) -> None:
+    import cupy as cp
 
-        min_value = -1
-        sz = self.block_threads
-        for min_index in range(0, self.max_arr):
-            assert min_index < self.max_arr
-            arr_in = np.arange(sz, dtype=np.float32)
-            arr_in[min_index] = min_value
+    module = setup_argmin_module['module']
+    max_arr = setup_argmin_module['max_arr']
+    block_threads = setup_argmin_module['block_threads']
+    eps = setup_argmin_module['eps']
 
-            arr_in_gpu = cp.array(arr_in)
-            out_key_gpu = cp.zeros((1,), dtype=np.int32)
-            out_value_gpu = cp.zeros((1,), dtype=np.float32)
-            assert arr_in_gpu.flags.c_contiguous
+    min_value = -1
+    sz = block_threads
+    for min_index in range(0, max_arr):
+        assert min_index < max_arr
+        arr_in = np.arange(sz, dtype=np.float32)
+        arr_in[min_index] = min_value
 
-            gpu_func = self.module.get_function('BlockReduceArgminKernel')
-            sz_block = self.block_threads,
-            sz_grid = 1,
-            gpu_func(
-                block=sz_block,
-                grid=sz_grid,
-                args=(
-                    out_key_gpu,
-                    out_value_gpu,
-                    arr_in_gpu,
-                )
+        arr_in_gpu = cp.array(arr_in)
+        out_key_gpu = cp.zeros((1,), dtype=np.int32)
+        out_value_gpu = cp.zeros((1,), dtype=np.float32)
+        assert arr_in_gpu.flags.c_contiguous
+
+        gpu_func = module.get_function('BlockReduceArgminKernel')
+        sz_block = block_threads,
+        sz_grid = 1,
+        gpu_func(
+            block=sz_block,
+            grid=sz_grid,
+            args=(
+                out_key_gpu,
+                out_value_gpu,
+                arr_in_gpu,
             )
-            cp.cuda.runtime.deviceSynchronize()
-            value_ref = min_value
-            if ((min_index > 0) and (min_index < self.max_arr - 1)):
-                # interpolation
-                x_plus = arr_in[min_index + 1]
-                x_minus = arr_in[min_index - 1]
-                value_ref = -(x_plus - x_minus) / (2 * x_minus - 4 * min_value + 2 * x_plus);
+        )
+        cp.cuda.runtime.deviceSynchronize()
+        value_ref = min_value
+        if ((min_index > 0) and (min_index < max_arr - 1)):
+            # interpolation
+            x_plus = arr_in[min_index + 1]
+            x_minus = arr_in[min_index - 1]
+            value_ref = -(x_plus - x_minus) / (2 * x_minus - 4 * min_value + 2 * x_plus);
 
-            ok_(out_key_gpu.get() == min_index)
-            err = np.abs(out_value_gpu.get() - value_ref)
-            ok_(err < self.eps)
+        assert out_key_gpu.get() == min_index
+        assert_allclose(value_ref, out_value_gpu.get(), rtol=eps)

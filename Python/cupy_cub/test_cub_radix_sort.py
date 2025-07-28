@@ -1,6 +1,6 @@
 # BSD 2-Clause License
 #
-# Copyright (c) 2023, Eijiro SHIBUSAWA
+# Copyright (c) 2025, Eijiro SHIBUSAWA
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -25,59 +25,68 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-
-from unittest import TestCase
-from nose.tools import ok_
+import pytest
+from typing import Dict, Any, Generator
 
 import numpy as np
+from numpy.testing import assert_array_equal
 
-class RadixSortTestCase(TestCase):
-    def setUp(self):
-        if os.environ.get('NVCC') is None:
-            os.environ['NVCC'] = '/usr/local/cuda/bin/nvcc'
-        import cupy as cp
+@pytest.fixture(scope='function')
+def setup_radix_sort_module() -> Generator[Dict[str, Any], Any, None]:
+    if os.environ.get('NVCC') is None:
+        os.environ['NVCC'] = '/usr/local/cuda/bin/nvcc'
+    import cupy as cp
 
-        self.max_arr = 1024
-        self.block_threads = 128
-        self.item_per_threads = 13
+    max_arr = 1024
+    block_threads = 128
+    item_per_threads = 13
 
-        dn = os.path.dirname(os.path.realpath(__file__))
-        fpfn = os.path.join(dn, 'cub_radix_sort.cu')
-        with open(fpfn, 'r') as f:
-            cuda_source = f.read()
+    dn = os.path.dirname(os.path.realpath(__file__))
+    fpfn = os.path.join(dn, 'cub_radix_sort.cu')
 
-        cuda_source = cuda_source.replace('KEY_TYPE', 'int')
-        cuda_source = cuda_source.replace('BLOCK_THREADS', str(self.block_threads))
-        cuda_source = cuda_source.replace('ITEMS_PER_THREAD', str(self.item_per_threads))
+    with open(fpfn, 'r') as f:
+        cuda_source = f.read()
 
-        self.module = cp.RawModule(code=cuda_source, backend='nvcc')
-        self.module.compile()
+    cuda_source = cuda_source.replace('KEY_TYPE', 'int')
+    cuda_source = cuda_source.replace('BLOCK_THREADS', str(block_threads))
+    cuda_source = cuda_source.replace('ITEMS_PER_THREAD', str(item_per_threads))
 
-    def tearDown(self):
-        pass
+    module = cp.RawModule(code=cuda_source, backend='nvcc')
+    module.compile()
 
-    def radix_sort_test(self):
-        import cupy as cp
+    yield {
+        'module': module,
+        'max_arr': max_arr,
+        'block_threads': block_threads,
+        'item_per_threads': item_per_threads
+    }
 
-        sz = self.block_threads * self.item_per_threads
-        arr_in = (self.max_arr * np.random.rand(sz)).astype(np.int32)
-        arr_in_gpu = cp.array(arr_in)
-        arr_out_gpu = cp.zeros_like(arr_in_gpu)
+def test_radix_sort(setup_radix_sort_module: Generator[Dict[str, Any], Any, None]) -> None:
+    import cupy as cp
 
-        gpu_func = self.module.get_function('BlockSortKernel')
-        sz_block = self.block_threads,
-        sz_grid = 1,
-        gpu_func(
-            block=sz_block,
-            grid=sz_grid,
-            args=(
-                arr_in_gpu,
-                arr_out_gpu
-            )
+    module = setup_radix_sort_module['module']
+    max_arr = setup_radix_sort_module['max_arr']
+    block_threads = setup_radix_sort_module['block_threads']
+    item_per_threads = setup_radix_sort_module['item_per_threads']
+
+    sz = block_threads * item_per_threads
+    arr_in = (max_arr * np.random.rand(sz)).astype(np.int32)
+    arr_in_gpu = cp.array(arr_in)
+    arr_out_gpu = cp.zeros_like(arr_in_gpu)
+
+    gpu_func = module.get_function('BlockSortKernel')
+    sz_block = block_threads,
+    sz_grid = 1,
+    gpu_func(
+        block=sz_block,
+        grid=sz_grid,
+        args=(
+            arr_in_gpu,
+            arr_out_gpu
         )
-        cp.cuda.runtime.deviceSynchronize()
+    )
+    cp.cuda.runtime.deviceSynchronize()
 
-        arr_out_ref = np.sort(arr_in)
-        arr_out = arr_out_gpu.get()
-        err = np.abs(arr_out_ref- arr_out)
-        ok_(np.max(err) == 0)
+    arr_out_ref = np.sort(arr_in)
+    arr_out = arr_out_gpu.get()
+    assert_array_equal(arr_out_ref, arr_out)
