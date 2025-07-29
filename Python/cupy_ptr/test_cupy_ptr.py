@@ -34,7 +34,6 @@ import cupy as cp
 import util_cuda_array as uca
 import device_memory_container
 
-
 @pytest.fixture(scope='function')
 def setup_ptr_module() -> Generator[Dict[str, Any], Any, None]:
     eps = 1E-7

@@ -31,7 +31,6 @@ dependencies:
   - cupy
   - cuda-version=12.5
   - ipython
-  - nose
   - py-opencv
   - pybind11
   - pytest

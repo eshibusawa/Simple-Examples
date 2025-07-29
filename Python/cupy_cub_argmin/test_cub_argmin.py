@@ -30,13 +30,11 @@ from typing import Dict, Any, Generator
 
 import numpy as np
 from numpy.testing import assert_allclose
+import add_environ
+import cupy as cp
 
 @pytest.fixture(scope='function')
 def setup_argmin_module() -> Generator[Dict[str, Any], Any, None]:
-    if os.environ.get('NVCC') is None:
-        os.environ['NVCC'] = '/usr/local/cuda/bin/nvcc'
-    import cupy as cp
-
     max_arr = 512
     block_threads = max_arr
 

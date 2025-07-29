@@ -1,6 +1,6 @@
 # BSD 2-Clause License
 #
-# Copyright (c) 2021, Eijiro SHIBUSAWA
+# Copyright (c) 2025, Eijiro SHIBUSAWA
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -26,61 +26,64 @@
 
 import os
 import math
-
-from unittest import TestCase
-from nose.tools import ok_
+import pytest
+from typing import Dict, Any, Generator
 
 import numpy as np
+from numpy.testing import assert_allclose
 import cupy as cp
 import torch
 
-class TorchCupyTestCase(TestCase):
-    def setUp(self):
-        self.eps = 1E-6
-        self.sz = 1080, 1920
-        self.scale_length = 1
+@pytest.fixture(scope='function')
+def setup_module() -> Generator[Dict[str, Any], Any, None]:
+    eps = 1E-6
+    sz = 1080, 1920
+    scale_length = 1
 
-        dn = os.path.dirname(os.path.realpath(__file__))
-        fpfn = os.path.join(dn, 'device_code.cu')
-        # load raw kernel
-        with open(fpfn, 'r') as f:
-            cuda_source = f.read()
-        cuda_source = cuda_source.replace("SCALE_LENGTH", str(self.scale_length))
-        cuda_source = cuda_source.replace("HEIGHT", str(self.sz[0]))
-        cuda_source = cuda_source.replace("WIDTH", str(self.sz[1]))
-        self.module = cp.RawModule(code=cuda_source)
-        self.scale_grid_gpu = self.module.get_function("scaleGrid")
+    dn = os.path.dirname(os.path.realpath(__file__))
+    fpfn = os.path.join(dn, 'device_code.cu')
+    with open(fpfn, 'r') as f:
+        cuda_source = f.read()
+    cuda_source = cuda_source.replace("SCALE_LENGTH", str(scale_length))
+    cuda_source = cuda_source.replace("HEIGHT", str(sz[0]))
+    cuda_source = cuda_source.replace("WIDTH", str(sz[1]))
+    module = cp.RawModule(code=cuda_source)
 
-    def tearDown(self):
-        pass
+    yield {
+        'module':module,
+        'eps': eps,
+        'sz': sz,
+        'scale_length': scale_length
+    }
 
-    def scale_grid_test(self):
-        xy = np.empty((self.sz[0], self.sz[1], 2), dtype=np.float32)
-        xy[:,:,0] = np.arange(0, self.sz[1])[np.newaxis,:]
-        xy[:,:,1] = np.arange(0, self.sz[0])[:,np.newaxis]
+def test_scale_grid(setup_module: Generator[Dict[str, Any], Any, None]) -> None:
+    module = setup_module['module']
+    eps = setup_module['eps']
+    sz = setup_module['sz']
+    scale_length = setup_module['scale_length']
 
-        scale = np.random.rand(self.scale_length).astype(np.float32)[0]
-        xy_scale_ref = scale * xy
+    xy = np.empty((sz[0], sz[1], 2), dtype=np.float32)
+    xy[:,:,0] = np.arange(0, sz[1])[np.newaxis,:]
+    xy[:,:,1] = np.arange(0, sz[0])[:,np.newaxis]
 
-        # upload scale value to GPU constant memory
-        scale_ptr = self.module.get_global("g_scale")
-        scale_gpu = cp.ndarray((self.scale_length,), cp.float32, scale_ptr)
-        scale_gpu[...] = scale
+    scale = np.random.rand(scale_length).astype(np.float32)[0]
+    xy_scale_ref = scale * xy
 
-        # allocate GPU memory
-        xy_scale_gpu = torch.empty((self.sz[0], self.sz[1], 2), dtype=torch.float32, device='cuda')
-        sz_block = 16, 16
-        sz_grid = math.ceil(self.sz[1] / sz_block[1]), math.ceil(self.sz[0] / sz_block[0])
-        # call the kernel
-        self.scale_grid_gpu(
-            block=sz_block,
-            grid=sz_grid,
-            args=(
-                xy_scale_gpu.data_ptr(),
-            )
+    # upload scale value to GPU constant memory
+    scale_ptr = module.get_global('g_scale')
+    scale_gpu = cp.ndarray((scale_length,), cp.float32, scale_ptr)
+    scale_gpu[...] = scale
+
+    xy_scale_gpu = torch.empty((sz[0], sz[1], 2), dtype=torch.float32, device='cuda')
+    sz_block = 16, 16
+    sz_grid = math.ceil(sz[1] / sz_block[1]), math.ceil(sz[0] / sz_block[0])
+    gpu_func = module.get_function('scaleGrid')
+    gpu_func(
+        block=sz_block,
+        grid=sz_grid,
+        args=(
+            xy_scale_gpu.data_ptr(),
         )
-        # download the result
-        xy_scale = xy_scale_gpu.cpu().numpy()
-
-        err = np.abs(xy_scale - xy_scale_ref)
-        ok_(np.max(err) < self.eps)
+    )
+    xy_scale = xy_scale_gpu.cpu().numpy()
+    assert_allclose(xy_scale_ref, xy_scale, rtol=eps, atol=0)

@@ -30,13 +30,11 @@ from typing import Dict, Any, Generator
 
 import numpy as np
 from numpy.testing import assert_array_equal
+import add_environ
+import cupy as cp
 
 @pytest.fixture(scope='function')
 def setup_radix_sort_module() -> Generator[Dict[str, Any], Any, None]:
-    if os.environ.get('NVCC') is None:
-        os.environ['NVCC'] = '/usr/local/cuda/bin/nvcc'
-    import cupy as cp
-
     max_arr = 1024
     block_threads = 128
     item_per_threads = 13

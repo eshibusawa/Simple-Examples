@@ -1,6 +1,6 @@
 # BSD 2-Clause License
 #
-# Copyright (c) 2021, Eijiro SHIBUSAWA
+# Copyright (c) 2025, Eijiro SHIBUSAWA
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -24,29 +24,32 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required(VERSION 3.30)
 
 project(BoostPythonExample)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
 	CACHE PATH "Output directory for libraries.")
 
-# Python / Anaconda
-set(PYTHON_VERSION 3.6)
-string(REPLACE "." "" PYTHON_VERSION_REP ${PYTHON_VERSION})
-set(ANACONDA_ROOT "/path/to/env/")
+find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+find_package(Boost COMPONENTS python numpy REQUIRED)
 
-set(BOOST_PYTHON_LIBS python${PYTHON_VERSION}m boost_python${PYTHON_VERSION_REP} boost_numpy${PYTHON_VERSION_REP})
-set(BOOST_PYTHON_INCLUDES ${ANACONDA_ROOT}/include ${ANACONDA_ROOT}/include/python${PYTHON_VERSION}m)
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-	set(CMAKE_INSTALL_PREFIX "${ANACONDA_ROOT}/lib/python3.6/site-packages" CACHE PATH "..." FORCE)
+	set(CMAKE_INSTALL_PREFIX ${Python3_SITELIB} CACHE PATH "..." FORCE)
 endif()
-link_directories(${ANACONDA_ROOT}/lib)
 
 add_library(simple_boost SHARED
 	simple_boost.cpp
 	)
-target_include_directories(simple_boost PRIVATE ${BOOST_PYTHON_INCLUDES})
-target_link_libraries(simple_boost ${BOOST_PYTHON_LIBS})
+target_include_directories(simple_boost PRIVATE
+	${Python3_INCLUDE_DIRS}
+	Boost::python
+	Boost::numpy
+	)
+target_link_libraries(simple_boost PRIVATE
+	${Python3_LIBRARIES}
+	Boost::python
+	Boost::numpy
+	)
 set_target_properties(simple_boost PROPERTIES PREFIX "")
 install(TARGETS simple_boost DESTINATION .)

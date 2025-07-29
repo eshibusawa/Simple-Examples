@@ -1,6 +1,6 @@
 # BSD 2-Clause License
 #
-# Copyright (c) 2022, Eijiro SHIBUSAWA
+# Copyright (c) 2025, Eijiro SHIBUSAWA
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -25,85 +25,86 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-
-from unittest import TestCase
-from nose.tools import ok_
+import pytest
+from typing import Dict, Any, Generator
 
 import numpy as np
+from numpy.testing import assert_equal, assert_allclose
 import cupy as cp
 
-class TensorCoreWMMATestCase(TestCase):
-    def setUp(self):
-        dn = os.path.dirname(os.path.realpath(__file__))
-        fpfn = os.path.join(dn, 'cupy_tensorcore.cu')
-        with open(fpfn, 'r') as f:
-            cuda_source = f.read()
+@pytest.fixture(scope='module')
+def setup_module() -> Generator[Dict[str, Any], Any, None]:
+    dn = os.path.dirname(os.path.realpath(__file__))
+    fpfn = os.path.join(dn, 'cupy_tensorcore.cu')
+    with open(fpfn, 'r') as f:
+        cuda_source = f.read()
 
-        cuda_source_int = cuda_source.replace('MatrixABType', 'unsigned char')
-        cuda_source_int = cuda_source_int.replace('MatrixCType', 'int')
-        self.module_int = cp.RawModule(code=cuda_source_int)
-        self.module_int.compile()
+    cuda_source_int = cuda_source.replace('MatrixABType', 'unsigned char')
+    cuda_source_int = cuda_source_int.replace('MatrixCType', 'int')
+    module_int = cp.RawModule(code=cuda_source_int)
+    module_int.compile()
 
-        cuda_source_float = cuda_source.replace('MatrixABType', 'half')
-        cuda_source_float = cuda_source_float.replace('MatrixCType', 'float')
+    cuda_source_float = cuda_source.replace('MatrixABType', 'half')
+    cuda_source_float = cuda_source_float.replace('MatrixCType', 'float')
 
-        self.module_float = cp.RawModule(code=cuda_source_float)
-        self.module_float.compile()
+    module_float = cp.RawModule(code=cuda_source_float)
+    module_float.compile()
 
-    def tearDown(self):
-        pass
+    yield {
+        'module_int': module_int,
+        'module_float': module_float
+    }
 
-    @staticmethod
-    def call_kernel(module, A, B, C):
-        gpu_func = module.get_function('wmma_16x16')
-        block = 32, 1
-        grid = 1, 1
+def call_kernel(module, A, B, C):
+    gpu_func = module.get_function('wmma_16x16')
+    block = 32, 1
+    grid = 1, 1
 
-        start = cp.cuda.Event()
-        end = cp.cuda.Event()
-        start.record()
-        gpu_func(
-            block=block,
-            grid=grid,
-            args=(
-                A,
-                B,
-                C,
-            )
+    start = cp.cuda.Event()
+    end = cp.cuda.Event()
+    start.record()
+    gpu_func(
+        block=block,
+        grid=grid,
+        args=(
+            A,
+            B,
+            C,
         )
-        cp.cuda.runtime.deviceSynchronize()
-        end.record()
-        end.synchronize()
+    )
+    cp.cuda.runtime.deviceSynchronize()
+    end.record()
+    end.synchronize()
 
-        msec = cp.cuda.get_elapsed_time(start, end)
-        print('Elapsed Time: {} [msec]'.format(msec))
+    msec = cp.cuda.get_elapsed_time(start, end)
+    print(f'Elapsed Time: {msec} [msec]')
 
-        return C.get()
+    return C.get()
 
-    def mm_int_test(self):
-        A = (4 * np.random.rand(16, 16)).astype(np.uint8)
-        B = (4 * np.random.rand(16, 16)).astype(np.uint8)
-        C = (64 * np.random.rand(16, 16)).astype(np.int32)
+def test_mm_int(setup_module: Generator[Dict[str, Any], Any, None]) -> None:
+    module = setup_module['module_int']
+    A = (4 * np.random.rand(16, 16)).astype(np.uint8)
+    B = (4 * np.random.rand(16, 16)).astype(np.uint8)
+    C = (64 * np.random.rand(16, 16)).astype(np.int32)
 
-        A_gpu = cp.array(A, dtype=cp.uint8)
-        B_gpu = cp.array(B, dtype=cp.uint8)
-        C_gpu = cp.array(C, dtype=cp.int32)
+    A_gpu = cp.array(A, dtype=cp.uint8)
+    B_gpu = cp.array(B, dtype=cp.uint8)
+    C_gpu = cp.array(C, dtype=cp.int32)
 
-        D = self.call_kernel(self.module_int, A_gpu, B_gpu, C_gpu)
-        D_ref = np.dot(A, B) + C
-        err = np.abs(D_ref - D)
-        ok_(np.max(err) == 0)
+    D = call_kernel(module, A_gpu, B_gpu, C_gpu)
+    D_ref = np.dot(A, B) + C
+    assert_equal(D_ref, D)
 
-    def mm_float_test(self):
-        A = (4 * np.random.rand(16, 16)).astype(np.half)
-        B = (4 * np.random.rand(16, 16)).astype(np.half)
-        C = (64 * np.random.rand(16, 16)).astype(np.float32)
+def test_mm_float(setup_module: Generator[Dict[str, Any], Any, None]) -> None:
+    module = setup_module['module_float']
+    A = (4 * np.random.rand(16, 16)).astype(np.half)
+    B = (4 * np.random.rand(16, 16)).astype(np.half)
+    C = (64 * np.random.rand(16, 16)).astype(np.float32)
 
-        A_gpu = cp.array(A, dtype=cp.half)
-        B_gpu = cp.array(B, dtype=cp.half)
-        C_gpu = cp.array(C, dtype=cp.float32)
+    A_gpu = cp.array(A, dtype=cp.half)
+    B_gpu = cp.array(B, dtype=cp.half)
+    C_gpu = cp.array(C, dtype=cp.float32)
 
-        D = self.call_kernel(self.module_float, A_gpu, B_gpu, C_gpu)
-        D_ref = np.dot(A, B) + C
-        err = np.abs(D_ref - D)
-        ok_(np.max(err) <= 1/32)
+    D = call_kernel(module, A_gpu, B_gpu, C_gpu)
+    D_ref = np.dot(A, B) + C
+    assert_allclose(D_ref, D, rtol=1/32, atol=0)

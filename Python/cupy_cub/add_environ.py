@@ -1,6 +1,6 @@
 # BSD 2-Clause License
 #
-# Copyright (c) 2025, Eijiro SHIBUSAWA
+# Copyright (c) 2023, Eijiro SHIBUSAWA
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -24,37 +24,6 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import pytest
-from typing import Dict, Any, Generator
-
-import numpy as np
-from numpy.testing import assert_allclose
-
-import torch
-import scale_grid
-
-@pytest.fixture(scope='function')
-def setup() -> Generator[Dict[str, Any], Any, None]:
-    eps = 1E-7
-    sz = 1080, 1920
-
-    yield {
-        'eps': eps,
-        'sz': sz
-    }
-
-def test_scale_grid(setup: Generator[Dict[str, Any], Any, None]) -> None:
-    eps = setup['eps']
-    sz = setup['sz']
-
-    xy = np.empty((sz[0], sz[1], 2), dtype=np.float32)
-    xy[:,:,0] = np.arange(0, sz[1])[np.newaxis,:]
-    xy[:,:,1] = np.arange(0, sz[0])[:,np.newaxis]
-
-    scale = np.random.rand(1).astype(np.float32)[0]
-    xy_scale_ref = scale * xy
-
-    # call the extension
-    xy_scale_gpu = scale_grid.scale_grid(sz, scale)
-    xy_scale = xy_scale_gpu.cpu().numpy()
-    assert_allclose(xy_scale_ref, xy_scale, rtol=eps, atol=0)
+import os
+if os.environ.get('NVCC') is None:
+    os.environ['NVCC'] = '/usr/local/cuda/bin/nvcc'

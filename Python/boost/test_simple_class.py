@@ -1,6 +1,6 @@
 # BSD 2-Clause License
 #
-# Copyright (c) 2021, Eijiro SHIBUSAWA
+# Copyright (c) 2025, Eijiro SHIBUSAWA
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -24,75 +24,81 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from unittest import TestCase
-from nose.tools import ok_
+import pytest
+from typing import Dict, Any, Generator
 
 import numpy as np
+from numpy.testing import assert_allclose
 
 from simple_boost import simple_class
+
+@pytest.fixture(scope='module')
+def setup() -> Generator[Dict[str, Any], Any, None]:
+    eps = 1E-5
+    arr = np.random.rand(3, 3).astype(np.float32)
+
+    yield {
+        'eps': eps,
+        'arr': arr
+    }
 
 class simple_class_settings:
     def __init__(self):
         self.value = 1
         self.computation_mode = simple_class.computation_mode.add
 
-class SimpleClassTestCase(TestCase):
-    def setUp(self):
-        self.eps = 10E-5
-        self.arr = np.random.rand(3, 3).astype(np.float32)
+def test_add_operator(setup: Generator[Dict[str, Any], Any, None]) -> None:
+    eps = setup['eps']
+    arr = setup['arr']
 
+    scs = simple_class_settings()
+    scs.value = np.random.rand(1).astype(np.float32)[0]
+    scs.computation_mode = simple_class.computation_mode.add
 
-    def tearDown(self):
-        pass
+    sc = simple_class()
+    arr2 = sc.compute(scs, arr)
 
-    def add_test(self):
-        scs = simple_class_settings()
-        scs.value = np.random.rand(1).astype(np.float32)[0]
-        scs.computation_mode = simple_class.computation_mode.add
+    arr2_ref = arr + scs.value
+    assert_allclose(arr2_ref, arr2, rtol=eps, atol=0)
 
-        sc = simple_class()
-        arr2 = sc.compute(scs, self.arr)
+def test_sub_operator(setup: Generator[Dict[str, Any], Any, None]) -> None:
+    eps = setup['eps']
+    arr = setup['arr']
 
-        arr2_ref = self.arr + scs.value
-        err = np.max(np.abs(arr2_ref - arr2))
+    scs = simple_class_settings()
+    scs.value = np.random.rand(1).astype(np.float32)[0]
+    scs.computation_mode = simple_class.computation_mode.sub
 
-        ok_(err < self.eps)
+    sc = simple_class()
+    arr2 = sc.compute(scs, arr)
 
-    def sub_test(self):
-        scs = simple_class_settings()
-        scs.value = np.random.rand(1).astype(np.float32)[0]
-        scs.computation_mode = simple_class.computation_mode.sub
+    arr2_ref = arr - scs.value
+    assert_allclose(arr2_ref, arr2, rtol=eps, atol=0)
 
-        sc = simple_class()
-        arr2 = sc.compute(scs, self.arr)
+def test_mul_operator(setup: Generator[Dict[str, Any], Any, None]) -> None:
+    eps = setup['eps']
+    arr = setup['arr']
 
-        arr2_ref = self.arr - scs.value
-        err = np.max(np.abs(arr2_ref - arr2))
+    scs = simple_class_settings()
+    scs.value = np.random.rand(1).astype(np.float32)[0]
+    scs.computation_mode = simple_class.computation_mode.mul
 
-        ok_(err < self.eps)
+    sc = simple_class()
+    arr2 = sc.compute(scs, arr)
 
-    def mul_test(self):
-        scs = simple_class_settings()
-        scs.value = np.random.rand(1).astype(np.float32)[0]
-        scs.computation_mode = simple_class.computation_mode.mul
+    arr2_ref = arr * scs.value
+    assert_allclose(arr2_ref, arr2, rtol=eps, atol=0)
 
-        sc = simple_class()
-        arr2 = sc.compute(scs, self.arr)
+def test_div_operator(setup: Generator[Dict[str, Any], Any, None]) -> None:
+    eps = setup['eps']
+    arr = setup['arr']
 
-        arr2_ref = self.arr * scs.value
-        err = np.max(np.abs(arr2_ref - arr2))
+    scs = simple_class_settings()
+    scs.value = np.random.rand(1).astype(np.float32)[0]
+    scs.computation_mode = simple_class.computation_mode.div
 
-        ok_(err < self.eps)
+    sc = simple_class()
+    arr2 = sc.compute(scs, arr)
 
-    def div_test(self):
-        scs = simple_class_settings()
-        scs.value = np.random.rand(1).astype(np.float32)[0]
-        scs.computation_mode = simple_class.computation_mode.div
-
-        sc = simple_class()
-        arr2 = sc.compute(scs, self.arr)
-
-        arr2_ref = self.arr / scs.value
-        err = np.max(np.abs(arr2_ref - arr2))
-
-        ok_(err < self.eps)
+    arr2_ref = arr / scs.value
+    assert_allclose(arr2_ref, arr2, rtol=eps, atol=0)

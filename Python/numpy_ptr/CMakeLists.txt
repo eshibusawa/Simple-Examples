@@ -1,6 +1,6 @@
 # BSD 2-Clause License
 #
-# Copyright (c) 2023, Eijiro SHIBUSAWA
+# Copyright (c) 2025, Eijiro SHIBUSAWA
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@ set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}" "${Python_SITELIB}/../../")
 pybind11_add_module(util_array_impl MODULE
 	utilArray.cpp
 	)
-target_include_directories(util_array_impl PRIVATE
+target_include_directories(util_array_impl PRIVATE)
 install(TARGETS util_array_impl DESTINATION .)
 
 pybind11_add_module(vector_container MODULE

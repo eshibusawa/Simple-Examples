@@ -31,7 +31,6 @@ from typing import Dict, Any, Generator
 
 import numpy as np
 from numpy.testing import assert_allclose
-import add_environ
 import cupy as cp
 
 @pytest.fixture(scope='function')
@@ -48,7 +47,7 @@ def setup_module() -> Generator[Dict[str, Any], Any, None]:
     cuda_source = cuda_source.replace('WINDOW_SIZE', str(window_size))
     cuda_source = cuda_source.replace('BLOCK_SIZE', str(block_size))
 
-    module = cp.RawModule(code=cuda_source, backend='nvcc')
+    module = cp.RawModule(code=cuda_source, enable_cooperative_groups=True)
     module.compile()
 
     yield {
@@ -72,7 +71,7 @@ def test_moving_average_test(setup_module: Generator[Dict[str, Any], Any, None])
 
     sz_block = 1024,
     sz_grid = math.ceil(array_in_gpu.shape[0] / sz_block[0]),
-    gpu_func = module.get_function("movingAverageNaive")
+    gpu_func = module.get_function('movingAverageNaive')
     start = cp.cuda.Event()
     end = cp.cuda.Event()
     start.record()
@@ -95,7 +94,7 @@ def test_moving_average_test(setup_module: Generator[Dict[str, Any], Any, None])
     assert array_out_gpu.flags.c_contiguous
     sz_block = block_size,
     sz_grid = math.ceil(array_in_gpu.shape[0] / sz_block[0]),
-    gpu_func = module.get_function("movingAverageShfl")
+    gpu_func = module.get_function('movingAverageShfl')
     start = cp.cuda.Event()
     end = cp.cuda.Event()
     start.record()
