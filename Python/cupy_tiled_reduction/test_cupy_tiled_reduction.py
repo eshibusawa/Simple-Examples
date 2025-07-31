@@ -25,7 +25,6 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-import math
 import pytest
 from typing import Dict, Any, Generator
 
@@ -35,16 +34,17 @@ import cupy as cp
 
 @pytest.fixture(scope='function')
 def setup_module() -> Generator[Dict[str, Any], Any, None]:
-    eps = 1E-5
-    window_size = 8
-    block_size = 128
+    eps = 1E-6
+    tile_size = 128
+    tile_num = 8
+    block_size = tile_num * tile_size
 
     dn = os.path.dirname(os.path.realpath(__file__))
-    fpfn = os.path.join(dn, 'shfl_moving_average.cu')
+    fpfn = os.path.join(dn, 'tiled_reduction.cu')
     with open(fpfn, 'r') as f:
         cuda_source = f.read()
 
-    cuda_source = cuda_source.replace('WINDOW_SIZE', str(window_size))
+    cuda_source = cuda_source.replace('TILE_SIZE', str(tile_size))
     cuda_source = cuda_source.replace('BLOCK_SIZE', str(block_size))
 
     module = cp.RawModule(code=cuda_source, enable_cooperative_groups=True)
@@ -53,68 +53,39 @@ def setup_module() -> Generator[Dict[str, Any], Any, None]:
     yield {
         'module':module,
         'eps': eps,
-        'block_size': block_size
+        'tile_size': tile_size,
+        'tile_num': tile_num
     }
 
-def test_moving_average(setup_module: Generator[Dict[str, Any], Any, None]) -> None:
+def test_tiled_reduction(setup_module: Generator[Dict[str, Any], Any, None]) -> None:
     module = setup_module['module']
     eps = setup_module['eps']
-    block_size = setup_module['block_size']
+    tile_size = setup_module['tile_size']
+    tile_num = setup_module['tile_num']
 
-    length = 1 << 14
+    block_size = tile_num * tile_size
+    length = block_size
     array_in = np.random.rand(length).astype(np.float32)
+    array_in = np.reshape(array_in, (tile_num, tile_size))
 
     array_in_gpu = cp.array(array_in)
-    array_out_ref_gpu = cp.empty_like(array_in_gpu)
+    array_out_gpu = cp.empty_like(array_in_gpu)
     assert array_in_gpu.flags.c_contiguous
-    assert array_out_ref_gpu.flags.c_contiguous
-
-    sz_block = 1024,
-    sz_grid = math.ceil(array_in_gpu.shape[0] / sz_block[0]),
-    gpu_func = module.get_function('movingAverageNaive')
-    start = cp.cuda.Event()
-    end = cp.cuda.Event()
-    start.record()
-    start.synchronize()
-    gpu_func(
-        block=sz_block,
-        grid=sz_grid,
-        args=(
-            array_out_ref_gpu,
-            array_in_gpu,
-            array_in_gpu.shape[0]
-        )
-    )
-    cp.cuda.runtime.deviceSynchronize()
-    end.record()
-    end.synchronize()
-    msec_naive = cp.cuda.get_elapsed_time(start, end)
-
-    array_out_gpu = cp.full_like(array_in_gpu, -1)
     assert array_out_gpu.flags.c_contiguous
+
     sz_block = block_size,
-    sz_grid = math.ceil(array_in_gpu.shape[0] / sz_block[0]),
-    gpu_func = module.get_function('movingAverageShfl')
-    start = cp.cuda.Event()
-    end = cp.cuda.Event()
-    start.record()
-    start.synchronize()
+    sz_grid = 1,
+    gpu_func = module.get_function('tiledReduction')
     gpu_func(
         block=sz_block,
         grid=sz_grid,
         args=(
             array_out_gpu,
-            array_in_gpu,
-            array_in_gpu.shape[0]
+            array_in_gpu
         )
     )
     cp.cuda.runtime.deviceSynchronize()
-    end.record()
-    end.synchronize()
-    msec_shfl = cp.cuda.get_elapsed_time(start, end)
 
-    assert_allclose(array_out_ref_gpu.get(), array_out_gpu.get(), rtol=eps)
-
-    print('')
-    print(f'Elapsed Time Naive: {msec_naive} [msec]')
-    print(f'Elapsed Time Shfl: {msec_shfl} [msec]')
+    norms = np.linalg.norm(array_in, axis=1)
+    array_out_ref = array_in / norms[:, np.newaxis]
+    assert_allclose(array_out_ref, array_out_gpu.get(), rtol=eps)
