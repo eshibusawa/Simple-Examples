@@ -46,3 +46,21 @@ To verify the setup, select a model from the UI and send a test prompt. If a res
 ```txt
 Explain the difference between Japanese curry rice and Hayashi rice. Specifically, explain the defining elements of Hayashi rice.
 ```
+
+### Integration with VS Code + Continue
+To use these models for coding assistance in Visual Studio Code, follow these steps to configure the [Continue](https://www.continue.dev/) extension using the provided [`config.yaml`](./vscode/config.yaml).
+
+1. **Install the Continue Extension** in VS Code.
+2. **Configure the Extension**:
+   * Open the Continue config file (usually accessed via the gear icon in the Continue sidebar).
+   * Map the settings from the provided `config.yaml` to your Continue configuration.
+3. **API Endpoint Note**:
+   * Ensure the `apiBase` is set to `http://localhost:11434`.
+   * Since the containers are running on your local host, the VS Code extension can communicate directly with Ollama via this address.
+4. **Model Roles**:
+   * Use **Qwen2.5-Coder 14B** for complex chat, refactoring, and code generation.
+   * Use **Qwen2.5-Coder 1.5B** for low-latency autocomplete (Tab-complete).
+   * Use **Nomic Embed** for indexing your codebase to enable "Context-aware" answers.
+
+**Verification:**
+Highlight a block of code in VS Code and press `Cmd/Ctrl + L` to send it to the chat. Ask, "Refactor this function for better readability." If the 14B model responds, the integration is successful.
