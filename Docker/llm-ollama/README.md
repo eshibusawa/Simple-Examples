@@ -15,7 +15,7 @@ docker compose up -d --build
 Pull the required models:
 ```sh
 docker exec -it ollama ollama pull qwen2.5-coder:14b
-docker exec -it ollama ollama pull gemma2:9b
+docker exec -it ollama ollama pull gemma4:12b
 docker exec -it ollama ollama pull qwen2.5-coder:1.5b
 docker exec -it ollama ollama pull nomic-embed-text:latest
 ```
