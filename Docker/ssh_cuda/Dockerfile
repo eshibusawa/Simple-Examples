@@ -24,7 +24,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-FROM nvidia/cuda:12.6.3-devel-ubuntu22.04
+FROM nvidia/cuda:12.9.2-devel-ubuntu24.04
 
 ARG USERNAME=john-smith
 ARG PASSWORD=password
@@ -36,7 +36,7 @@ RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
 # install ssh etc.
 RUN apt clean && \
   apt update && \
-  apt install -y tzdata openssh-server sudo git nano cmake wget rsync libgl1-mesa-dev
+  apt install -y tzdata nano openssh-server sudo git curl wget software-properties-common libgl1-mesa-dev cmake
 EXPOSE 22
 
 # install vscode
@@ -44,12 +44,6 @@ RUN wget https://packages.microsoft.com/keys/microsoft.asc -O - | gpg --dearmor 
 RUN echo "deb [signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/vscode stable main" > /etc/apt/sources.list.d/vscode.list
 RUN apt update && \
   apt install -y code fonts-noto-cjk
-
-# install cmake
-RUN wget https://apt.kitware.com/keys/kitware-archive-latest.asc -O - 2>/dev/null | gpg --dearmor > /usr/share/keyrings/kitware-archive-keyring.gpg
-RUN echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ jammy main" > /etc/apt/sources.list.d/kitware.list
-RUN apt update && \
-  apt install -y cmake
 
 # add user
 RUN useradd -rm -d /home/${USERNAME} -s /bin/bash -u ${UID} ${USERNAME}
@@ -59,7 +53,6 @@ RUN echo "${USERNAME}:${PASSWORD}" | chpasswd
 ## add user settings
 USER ${USERNAME}
 WORKDIR /home/${USERNAME}
-RUN mkdir -p mnt
 RUN echo '"\e[A":history-search-backward' > .inputrc
 RUN echo '"\e[B":history-search-forward' >> .inputrc
 

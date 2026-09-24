@@ -33,6 +33,7 @@ Help()
    echo
    echo "-u     user name"
    echo "-i     user id"
+   echo "-n     image name"
    echo "-h     Help."
    echo
 }
@@ -40,12 +41,14 @@ Help()
 # set default
 USERNAME_ARG=$(id -nu)
 UID_ARG=$(id -u)
+IMAGE_NAME='u2404c129'
 
-while getopts u:i:h flag
+while getopts u:i:n:h flag
 do
     case "${flag}" in
         u) USERNAME_ARG=${OPTARG};;
         i) UID_ARG=${OPTARG};;
+        n) IMAGE_NAME=${OPTARG};;
         h) Help
             exit;;
     esac
@@ -55,4 +58,4 @@ read -p password?: -s PASSWORD
 echo
 
 docker build --quiet --build-arg USERNAME=$USERNAME_ARG --build-arg PASSWORD=$PASSWORD --build-arg UID=$UID_ARG \
-  -t u2204c125 .
+  -t ${IMAGE_NAME} .
